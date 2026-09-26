@@ -1,0 +1,6 @@
+frase = str(input('Escreva uma frase: ')).strip().upper()
+N = len(frase)
+N1 = frase.count('A')
+print('Quantas letras tem essa frase? ela tem {} letras e quantas vezes a letra A aparece: {}'.format(N,N1))
+print('A primeira letra A apareceu na posição {}'.format(frase.find('A')+1))
+print('A ultima letra A apareceu na posição {}'.format(frase.rfind('A')+1))
