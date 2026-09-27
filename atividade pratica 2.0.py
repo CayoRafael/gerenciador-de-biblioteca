@@ -4,6 +4,13 @@ import os
 import matplotlib.pyplot as plt
 import streamlit as st
 
+# --- INICIALIZAÇÃO DA SESSÃO ---
+if "senha_admin" not in st.session_state:
+    st.session_state.senha_admin = "admin123"
+
+if "autenticado" not in st.session_state:
+    st.session_state.autenticado = False
+
 # Ficheiro para persistência de dados
 ARQUIVO_BANCO = "biblioteca.json"
 
@@ -86,6 +93,36 @@ st.title("📚 Sistema de Gestão de Biblioteca")
 if "biblioteca" not in st.session_state:
     st.session_state.biblioteca = carregar_dados()
 
+# --- LOGIN DO ADMINISTRADOR ---
+st.sidebar.subheader("🔐 Acesso Restrito")
+
+if not st.session_state.autenticado:
+    senha_input = st.sidebar.text_input("Palavra-passe Admin:", type="password")
+    if st.sidebar.button("Entrar"):
+        if senha_input == st.session_state.senha_admin:
+            st.session_state.autenticado = True
+            st.sidebar.success("Acesso concedido!")
+            st.rerun()
+        else:
+            st.sidebar.error("Palavra-passe incorreta!")
+else:
+    st.sidebar.success("Sessão ativa (Admin)")
+
+    with st.sidebar.expander("🔑 Alterar Palavra-passe"):
+        nova_senha = st.text_input("Nova palavra-passe:", type="password")
+        if st.button("Guardar"):
+            if nova_senha.strip():
+                st.session_state.senha_admin = nova_senha
+                st.success("Palavra-passe alterada!")
+            else:
+                st.warning("A palavra-passe não pode estar vazia.")
+
+    if st.sidebar.button("Sair"):
+        st.session_state.autenticado = False
+        st.rerun()
+
+st.sidebar.divider()
+
 # --- MENU LATERAL (Navegação) ---
 st.sidebar.header("Menu de Opções")
 opcao = st.sidebar.radio(
@@ -102,46 +139,49 @@ opcao = st.sidebar.radio(
 if opcao == "Cadastrar Livro":
     st.header("➕ Cadastrar Novo Livro")
 
-    with st.form(key="form_cadastrar", clear_on_submit=True):
-        titulo = st.text_input("Título do Livro:")
-        autor = st.text_input("Autor:")
-        genero = st.text_input("Gênero:")
-        quantidade = st.number_input(
-            "Quantidade:", min_value=1, step=1, value=1
-        )
-        status = st.selectbox("Status de Disponibilidade:", ["Disponível", "Emprestado"])
+    if not st.session_state.autenticado:
+        st.warning("⚠️ **Acesso Restrito:** Apenas o administrador pode cadastrar novos livros. Por favor, faça login na barra lateral.")
+    else:
+        with st.form(key="form_cadastrar", clear_on_submit=True):
+            titulo = st.text_input("Título do Livro:")
+            autor = st.text_input("Autor:")
+            genero = st.text_input("Gênero:")
+            quantidade = st.number_input(
+                "Quantidade:", min_value=1, step=1, value=1
+            )
+            status = st.selectbox("Status de Disponibilidade:", ["Disponível", "Emprestado"])
 
-        # Campo para upload da imagem da capa do livro
-        capa_arquivo = st.file_uploader(
-            "Capa do Livro (Imagem):", type=["png", "jpg", "jpeg"]
-        )
-
-        submeter = st.form_submit_button("Cadastrar")
-
-    if submeter:
-        if titulo.strip() and autor.strip() and genero.strip():
-            # Lê os bytes da imagem enviada (se existir)
-            capa_data = (
-                capa_arquivo.read() if capa_arquivo is not None else None
+            # Campo para upload da imagem da capa do livro
+            capa_arquivo = st.file_uploader(
+                "Capa do Livro (Imagem):", type=["png", "jpg", "jpeg"]
             )
 
-            st.session_state.biblioteca.append({
-                "titulo": titulo.strip().title(),
-                "autor": autor.strip().title(),
-                "genero": genero.strip().title(),
-                "quantidade": int(quantidade),
-                "status": status,
-                "capa": capa_data,
-            })
+            submeter = st.form_submit_button("Cadastrar")
 
-            # Guarda as alterações no ficheiro JSON
-            salvar_dados(st.session_state.biblioteca)
+        if submeter:
+            if titulo.strip() and autor.strip() and genero.strip():
+                # Lê os bytes da imagem enviada (se existir)
+                capa_data = (
+                    capa_arquivo.read() if capa_arquivo is not None else None
+                )
 
-            st.success(
-                f"Livro '{titulo.strip().title()}' cadastrado com sucesso!"
-            )
-        else:
-            st.warning("Por favor, preencha todos os campos do formulário!")
+                st.session_state.biblioteca.append({
+                    "titulo": titulo.strip().title(),
+                    "autor": autor.strip().title(),
+                    "genero": genero.strip().title(),
+                    "quantidade": int(quantidade),
+                    "status": status,
+                    "capa": capa_data,
+                })
+
+                # Guarda as alterações no ficheiro JSON
+                salvar_dados(st.session_state.biblioteca)
+
+                st.success(
+                    f"Livro '{titulo.strip().title()}' cadastrado com sucesso!"
+                )
+            else:
+                st.warning("Por favor, preencha todos os campos do formulário!")
 
 
 # --- OPÇÃO 2: LISTAR LIVROS ---
@@ -213,38 +253,41 @@ elif opcao == "Gráfico por Gênero":
 elif opcao == "Remover / Editar":
     st.header("⚙️ Gerenciar Acervo")
 
-    if not st.session_state.biblioteca:
-        st.info("Nenhum livro disponível para gerenciar.")
+    if not st.session_state.autenticado:
+        st.warning("⚠️ **Acesso Restrito:** Apenas o administrador pode remover ou editar livros. Por favor, faça login na barra lateral.")
     else:
-        titulos = [l["titulo"] for l in st.session_state.biblioteca]
-        livro_selecionado = st.selectbox("Selecione um livro:", titulos)
+        if not st.session_state.biblioteca:
+            st.info("Nenhum livro disponível para gerenciar.")
+        else:
+            titulos = [l["titulo"] for l in st.session_state.biblioteca]
+            livro_selecionado = st.selectbox("Selecione um livro:", titulos)
 
-        # Localiza o livro selecionado
-        livro_obj = next((l for l in st.session_state.biblioteca if l["titulo"] == livro_selecionado), None)
+            # Localiza o livro selecionado
+            livro_obj = next((l for l in st.session_state.biblioteca if l["titulo"] == livro_selecionado), None)
 
-        if livro_obj:
-            status_atual = livro_obj.get("status", "Disponível")
-            st.write(f"Status atual: **{status_atual}**")
+            if livro_obj:
+                status_atual = livro_obj.get("status", "Disponível")
+                st.write(f"Status atual: **{status_atual}**")
 
-            novo_status = st.radio("Alterar Status:", ["Disponível", "Emprestado"], index=0 if status_atual == "Disponível" else 1)
+                novo_status = st.radio("Alterar Status:", ["Disponível", "Emprestado"], index=0 if status_atual == "Disponível" else 1)
 
-            col_btn1, col_btn2 = st.columns(2)
+                col_btn1, col_btn2 = st.columns(2)
 
-            with col_btn1:
-                if st.button("🔄 Atualizar Status"):
-                    livro_obj["status"] = novo_status
-                    salvar_dados(st.session_state.biblioteca)
-                    st.success(f"Status de '{livro_selecionado}' alterado para {novo_status}!")
-                    st.rerun()
+                with col_btn1:
+                    if st.button("🔄 Atualizar Status"):
+                        livro_obj["status"] = novo_status
+                        salvar_dados(st.session_state.biblioteca)
+                        st.success(f"Status de '{livro_selecionado}' alterado para {novo_status}!")
+                        st.rerun()
 
-            with col_btn2:
-                if st.button("🗑️ Remover Livro"):
-                    st.session_state.biblioteca = [
-                        l
-                        for l in st.session_state.biblioteca
-                        if l["titulo"] != livro_selecionado
-                    ]
-                    # Guarda a remoção no ficheiro JSON
-                    salvar_dados(st.session_state.biblioteca)
-                    st.success(f"Livro '{livro_selecionado}' removido!")
-                    st.rerun()
+                with col_btn2:
+                    if st.button("🗑️ Remover Livro"):
+                        st.session_state.biblioteca = [
+                            l
+                            for l in st.session_state.biblioteca
+                            if l["titulo"] != livro_selecionado
+                        ]
+                        # Guarda a remoção no ficheiro JSON
+                        salvar_dados(st.session_state.biblioteca)
+                        st.success(f"Livro '{livro_selecionado}' removido!")
+                        st.rerun()
